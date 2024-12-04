@@ -5,8 +5,6 @@ metadata:
   namespace: minio
   labels:
     app: minio
-  annotations:
-    tailscale.com/expose: "true"
 spec:
   ports:
     - port: 80

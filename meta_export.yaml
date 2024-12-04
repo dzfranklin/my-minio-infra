@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: meta-export-bin
+  namespace: minio
+data:
+  entrypoint.sh: |-
+    #!/usr/bin/env bash
+    set -euox pipefail
+
+    mc admin cluster iam export dfranklin
+    mc admin cluster bucket export dfranklin
+    mc admin config export dfranklin >dfranklin-config.txt
+
+    mc cp ./dfranklin-iam-info.zip s3/dfranklin-minio-meta-backup/
+    mc cp ./dfranklin-bucket-metadata.zip s3/dfranklin-minio-meta-backup/
+    mc cp ./dfranklin-config.txt s3/dfranklin-minio-meta-backup/
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: meta-export-job
+  namespace: minio
+spec:
+  schedule: "23 1 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: run
+              image: "minio/mc:RELEASE.2024-08-26T10-49-58Z"
+              command: ["/bin/entrypoint.sh"]
+              volumeMounts:
+                - mountPath: /bin/entrypoint.sh
+                  subPath: entrypoint.sh
+                  readOnly: true
+                  name: bin
+              env:
+                - name: MC_HOST_dfranklin
+                  valueFrom:
+                    secretKeyRef:
+                      name: root-alias
+                      key: value
+                - name: MC_HOST_s3
+                  valueFrom:
+                    secretKeyRef:
+                      name: s3-backuper-alias
+                      key: value
+          volumes:
+            - name: bin
+              configMap:
+                defaultMode: 0700
+                name: meta-export-bin
